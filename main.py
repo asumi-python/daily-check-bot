@@ -107,6 +107,17 @@ def handle_message(event):
         else:
             reply = "タスクはまだありません。\n「追加 タスク名」で追加できます！"
 
+    elif user_message.startswith("削除 "):
+        title = user_message[3:]
+        result = supabase.table("tasks").select("*").eq("user_id", user_id).ilike("title", f"%{title}%").execute()
+        if not result.data:
+            reply = f"「{title}」というタスクが見つかりませんでした。"
+        else:
+            task = result.data[0]
+            supabase.table("task_logs").delete().eq("task_id", task["id"]).execute()
+            supabase.table("tasks").delete().eq("id", task["id"]).execute()
+            reply = f"「{task['title']}」を削除しました。"
+
     elif user_message.startswith("完了 "):
         title = user_message[3:]
         result = complete_task(user_id, title)
@@ -116,7 +127,7 @@ def handle_message(event):
             reply = result
 
     else:
-        reply = "コマンド一覧：\n・追加 タスク名\n・ルーティン追加 タスク名\n・タスク一覧\n・完了 タスク名"
+        reply = "コマンド一覧：\n・追加 タスク名\n・ルーティン追加 タスク名\n・タスク一覧\n・完了 タスク名\n・削除 タスク名"
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
