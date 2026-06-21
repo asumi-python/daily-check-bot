@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
@@ -37,6 +38,26 @@ def get_tasks(user_id):
     return result.data
 
 
+def complete_task(user_id, title):
+    # タイトルが部分一致するタスクを検索
+    result = supabase.table("tasks").select("*").eq("user_id", user_id).ilike("title", f"%{title}%").execute()
+    if not result.data:
+        return None
+    task = result.data[0]
+    today = date.today().isoformat()
+    # 既に完了済みか確認
+    existing = supabase.table("task_logs").select("*").eq("task_id", task["id"]).eq("date", today).execute()
+    if existing.data:
+        return f"「{task['title']}」は今日すでに完了済みです！"
+    supabase.table("task_logs").insert({
+        "task_id": task["id"],
+        "user_id": user_id,
+        "date": today,
+        "is_done": True
+    }).execute()
+    return f"「{task['title']}」を完了しました！お疲れさまでした！"
+
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
@@ -73,13 +94,29 @@ def handle_message(event):
     elif user_message == "タスク一覧":
         tasks = get_tasks(user_id)
         if tasks:
-            task_list = "\n".join([f"・{t['title']}" for t in tasks])
+            today = date.today().isoformat()
+            done_ids = {
+                log["task_id"]
+                for log in supabase.table("task_logs").select("task_id").eq("user_id", user_id).eq("date", today).execute().data
+            }
+            task_list = "\n".join([
+                f"{'✅' if t['id'] in done_ids else '・'}{t['title']}"
+                for t in tasks
+            ])
             reply = f"📋 タスク一覧\n{task_list}"
         else:
             reply = "タスクはまだありません。\n「追加 タスク名」で追加できます！"
 
+    elif user_message.startswith("完了 "):
+        title = user_message[3:]
+        result = complete_task(user_id, title)
+        if result is None:
+            reply = f"「{title}」というタスクが見つかりませんでした。"
+        else:
+            reply = result
+
     else:
-        reply = "コマンド一覧：\n・追加 タスク名\n・ルーティン追加 タスク名\n・タスク一覧"
+        reply = "コマンド一覧：\n・追加 タスク名\n・ルーティン追加 タスク名\n・タスク一覧\n・完了 タスク名"
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
