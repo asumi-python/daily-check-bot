@@ -76,7 +76,7 @@ def index():
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    user_message = event.message.text.strip()
+    user_message = event.message.text.strip().replace("　", " ")
     line_user_id = event.source.user_id
     user = get_or_create_user(line_user_id)
     user_id = user["id"]
