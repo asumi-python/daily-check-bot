@@ -16,10 +16,10 @@ def send_morning_notify():
         tasks = supabase.table("tasks").select("*").eq("user_id", user["id"]).execute()
 
         if not tasks.data:
-            continue
-
-        task_list = "\n".join([f"□ {t['title']}" for t in tasks.data])
-        message = f"おはようございます！\n今日のタスクです📋\n\n{task_list}\n\n完了したら「完了 タスク名」と送ってね！"
+            message = "今日の始まりです🌏\n\nタスクはまだありません。\n「追加 タスク名」で今日やることを登録しよう！"
+        else:
+            task_list = "\n".join([f"□ {t['title']}" for t in tasks.data])
+            message = f"おはようございます！\n今日のタスクです📋\n\n{task_list}\n\n完了したら「完了 タスク名」と送ってね！"
 
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
